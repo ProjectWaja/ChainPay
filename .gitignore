@@ -5,9 +5,12 @@ out/
 # Node
 node_modules/
 
-# Environment
+# Environment & Secrets
 .env
-.env.local
+.env.*
+*.pem
+*.key
+secrets/
 
 # IDE
 .vscode/
@@ -23,3 +26,7 @@ dashboard/node_modules/
 
 # Foundry
 broadcast/
+deploy-logs/
+
+# Config with secrets
+config/*.local.*
