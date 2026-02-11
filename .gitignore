@@ -1,0 +1,25 @@
+# Compiler output
+cache/
+out/
+
+# Node
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dashboard
+dashboard/.next/
+dashboard/node_modules/
+
+# Foundry
+broadcast/
