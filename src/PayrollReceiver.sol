@@ -106,4 +106,26 @@ contract PayrollReceiver is CCIPReceiver, Ownable {
     function getDisbursementCount() external view returns (uint256) {
         return disbursements.length;
     }
+
+    /// @notice Get paginated disbursement records
+    function getDisbursements(uint256 offset, uint256 limit) external view returns (DisbursementRecord[] memory) {
+        if (offset >= disbursements.length) {
+            return new DisbursementRecord[](0);
+        }
+        uint256 end = offset + limit;
+        if (end > disbursements.length) {
+            end = disbursements.length;
+        }
+        uint256 size = end - offset;
+        DisbursementRecord[] memory page = new DisbursementRecord[](size);
+        for (uint256 i = 0; i < size; i++) {
+            page[i] = disbursements[offset + i];
+        }
+        return page;
+    }
+
+    /// @notice Get balance of a specific token held by this contract
+    function getTokenBalance(address token) external view returns (uint256) {
+        return IERC20(token).balanceOf(address(this));
+    }
 }

@@ -2,7 +2,15 @@
 pragma solidity 0.8.24;
 
 import { Test, console2 } from "forge-std/Test.sol";
-import { PayStreamEngine, PayrollRecord, CrossChainPaymentInitiated } from "../src/PayStreamEngine.sol";
+import {
+    PayStreamEngine,
+    PayrollRecord,
+    CrossChainPaymentInitiated,
+    EmployeePaid,
+    CrossChainModuleUpdated,
+    EmployeeSalaryUpdated,
+    EmployeeChainUpdated
+} from "../src/PayStreamEngine.sol";
 import { CrossChainDisbursement } from "../src/CrossChainDisbursement.sol";
 import { PayrollReceiver } from "../src/PayrollReceiver.sol";
 import { CCIPLocalSimulator } from "@chainlink/local/src/ccip/CCIPLocalSimulator.sol";
@@ -252,6 +260,97 @@ contract PayStreamEngineTest is Test {
 
         vm.prank(alice); // Not admin
         vm.expectRevert();
+        engine.setCrossChainModule(module);
+    }
+
+    // --- New view/admin function tests ---
+
+    function test_getAllEmployeeIds() public {
+        vm.startPrank(admin);
+        engine.addEmployee(aliceId, alice, SALARY, BIWEEKLY, uint64(block.timestamp), 0);
+        engine.addEmployee(bobId, bob, 7_000e6, BIWEEKLY, uint64(block.timestamp), 0);
+        vm.stopPrank();
+
+        bytes32[] memory ids = engine.getAllEmployeeIds();
+        assertEq(ids.length, 2);
+        assertEq(ids[0], aliceId);
+        assertEq(ids[1], bobId);
+    }
+
+    function test_getAllEmployeeIds_empty() public view {
+        bytes32[] memory ids = engine.getAllEmployeeIds();
+        assertEq(ids.length, 0);
+    }
+
+    function test_getEngineBalance() public view {
+        assertEq(engine.getEngineBalance(), 1_000_000e6);
+    }
+
+    function test_getPaymentsDueNow() public {
+        vm.prank(admin);
+        engine.addEmployee(aliceId, alice, SALARY, BIWEEKLY, uint64(block.timestamp), 0);
+
+        vm.warp(block.timestamp + BIWEEKLY + 1);
+
+        bytes32[] memory due = engine.getPaymentsDueNow();
+        assertEq(due.length, 1);
+        assertEq(due[0], aliceId);
+    }
+
+    function test_getPaymentsDueNow_noneDue() public {
+        vm.prank(admin);
+        engine.addEmployee(aliceId, alice, SALARY, BIWEEKLY, uint64(block.timestamp), 0);
+
+        bytes32[] memory due = engine.getPaymentsDueNow();
+        assertEq(due.length, 0);
+    }
+
+    function test_updateEmployeeSalary() public {
+        vm.startPrank(admin);
+        engine.addEmployee(aliceId, alice, SALARY, BIWEEKLY, uint64(block.timestamp), 0);
+        engine.updateEmployeeSalary(aliceId, 10_000e6);
+        vm.stopPrank();
+
+        (, uint256 salary,,,,,) = engine.payroll(aliceId);
+        assertEq(salary, 10_000e6);
+    }
+
+    function test_updateEmployeeSalary_revertsNotFound() public {
+        bytes32 fakeId = keccak256("nonexistent");
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(PayStreamEngine.EmployeeNotFound.selector, fakeId));
+        engine.updateEmployeeSalary(fakeId, 10_000e6);
+    }
+
+    function test_updateEmployeeChain() public {
+        vm.startPrank(admin);
+        engine.addEmployee(aliceId, alice, SALARY, BIWEEKLY, uint64(block.timestamp), 0);
+        engine.updateEmployeeChain(aliceId, 16015286601757825753);
+        vm.stopPrank();
+
+        (,,,,,, uint64 chain) = engine.payroll(aliceId);
+        assertEq(chain, 16015286601757825753);
+    }
+
+    function test_performUpkeep_emitsEmployeePaid() public {
+        vm.prank(admin);
+        engine.addEmployee(aliceId, alice, SALARY, BIWEEKLY, uint64(block.timestamp), 0);
+
+        vm.warp(block.timestamp + BIWEEKLY + 1);
+        (, bytes memory performData) = engine.checkUpkeep("");
+
+        vm.prank(automator);
+        vm.expectEmit(true, true, true, true);
+        emit EmployeePaid(aliceId, alice, SALARY);
+        engine.performUpkeep(performData);
+    }
+
+    function test_setCrossChainModule_emitsEvent() public {
+        address module = makeAddr("module");
+
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit CrossChainModuleUpdated(module);
         engine.setCrossChainModule(module);
     }
 }

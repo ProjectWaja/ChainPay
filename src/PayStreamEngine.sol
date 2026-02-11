@@ -39,6 +39,18 @@ event CrossChainPaymentInitiated(
     uint256 salaryAmount
 );
 
+/// @notice Emitted when an individual employee is paid during a payroll run
+event EmployeePaid(bytes32 indexed employeeId, address indexed employee, uint256 amount);
+
+/// @notice Emitted when the cross-chain module is updated
+event CrossChainModuleUpdated(address indexed newModule);
+
+/// @notice Emitted when an employee's salary is updated
+event EmployeeSalaryUpdated(bytes32 indexed employeeId, uint256 newSalary);
+
+/// @notice Emitted when an employee's destination chain is updated
+event EmployeeChainUpdated(bytes32 indexed employeeId, uint64 newChainSelector);
+
 contract PayStreamEngine is AccessControl {
     using SafeERC20 for IERC20;
 
@@ -173,6 +185,7 @@ contract PayStreamEngine is AccessControl {
 
             record.lastPaidAt = uint64(block.timestamp);
             totalDisbursed += record.salaryAmount;
+            emit EmployeePaid(dueEmployees[i], record.employee, record.salaryAmount);
         }
 
         totalPayrollRuns++;
@@ -194,6 +207,51 @@ contract PayStreamEngine is AccessControl {
     /// @notice Set the cross-chain disbursement module
     function setCrossChainModule(address _module) external onlyRole(DEFAULT_ADMIN_ROLE) {
         crossChainModule = ICrossChainDisbursement(_module);
+        emit CrossChainModuleUpdated(_module);
+    }
+
+    /// @notice Get all employee IDs
+    function getAllEmployeeIds() external view returns (bytes32[] memory) {
+        return employeeIds;
+    }
+
+    /// @notice Get the engine's payment token balance
+    function getEngineBalance() external view returns (uint256) {
+        return paymentToken.balanceOf(address(this));
+    }
+
+    /// @notice Get all employee IDs that are currently due for payment
+    function getPaymentsDueNow() external view returns (bytes32[] memory) {
+        bytes32[] memory dueEmployees = new bytes32[](employeeIds.length);
+        uint256 count;
+
+        for (uint256 i = 0; i < employeeIds.length; i++) {
+            PayrollRecord storage record = payroll[employeeIds[i]];
+            if (record.active && block.timestamp >= record.lastPaidAt + record.payFrequency) {
+                dueEmployees[count] = employeeIds[i];
+                count++;
+            }
+        }
+
+        bytes32[] memory trimmed = new bytes32[](count);
+        for (uint256 i = 0; i < count; i++) {
+            trimmed[i] = dueEmployees[i];
+        }
+        return trimmed;
+    }
+
+    /// @notice Update an employee's salary
+    function updateEmployeeSalary(bytes32 employeeId, uint256 newSalary) external onlyRole(PAYROLL_ADMIN_ROLE) {
+        if (payroll[employeeId].employee == address(0)) revert EmployeeNotFound(employeeId);
+        payroll[employeeId].salaryAmount = newSalary;
+        emit EmployeeSalaryUpdated(employeeId, newSalary);
+    }
+
+    /// @notice Update an employee's destination chain selector
+    function updateEmployeeChain(bytes32 employeeId, uint64 newChainSelector) external onlyRole(PAYROLL_ADMIN_ROLE) {
+        if (payroll[employeeId].employee == address(0)) revert EmployeeNotFound(employeeId);
+        payroll[employeeId].destinationChainSelector = newChainSelector;
+        emit EmployeeChainUpdated(employeeId, newChainSelector);
     }
 
     /// @notice Accept ETH for CCIP fees

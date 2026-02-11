@@ -1,0 +1,12 @@
+{
+  "anvil": {
+    "chainId": 31337,
+    "rpcUrl": "http://127.0.0.1:8545",
+    "chainSelector": "16015286601757825753"
+  },
+  "sepolia": {
+    "chainId": 11155111,
+    "ccipRouter": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
+    "chainSelector": "16015286601757825753"
+  }
+}

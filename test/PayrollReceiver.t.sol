@@ -205,4 +205,30 @@ contract PayrollReceiverTest is Test {
         vm.expectRevert();
         payrollReceiver.emergencyWithdraw(address(usdc), alice, 1_000e6);
     }
+
+    // --- New view function tests ---
+
+    function test_getDisbursements_paginated() public {
+        vm.startPrank(engine);
+        disbursement.sendDisbursement(chainSelector, aliceId, alice, SALARY, address(usdc));
+        disbursement.sendDisbursement(chainSelector, bobId, bob, 7_000e6, address(usdc));
+        disbursement.sendDisbursement(chainSelector, aliceId, alice, SALARY, address(usdc));
+        vm.stopPrank();
+
+        // Read page starting at offset 1, limit 2
+        DisbursementRecord[] memory page = payrollReceiver.getDisbursements(1, 2);
+        assertEq(page.length, 2);
+        assertEq(page[0].employeeId, bobId);
+        assertEq(page[1].employeeId, aliceId);
+    }
+
+    function test_getDisbursements_offsetBeyondLength() public view {
+        DisbursementRecord[] memory page = payrollReceiver.getDisbursements(100, 10);
+        assertEq(page.length, 0);
+    }
+
+    function test_getTokenBalance() public view {
+        uint256 bal = payrollReceiver.getTokenBalance(address(usdc));
+        assertEq(bal, 1_000_000e6);
+    }
 }
